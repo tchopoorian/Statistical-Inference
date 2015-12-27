@@ -1,0 +1,213 @@
+---
+title: "ToothGrowth Data Analysis"
+author: "Tim Chopoorian"
+date: "December 27, 2015"
+output: pdf_document
+geometry: margin=.50in
+---
+
+
+## Overview
+
+The following report explores the ToothGrowth data available in R. The data are measures of the length of ondontoblasts (teeth) in each of 60 guinea pigs that were given one of three dose levels of Vitamin C, 0.5, 1, and 2 mgs, via one of two delivery methods, orange juice (OJ) and ascorbic acid (VC). We're interested in discovering which combinations of delivery method and dosage, if any, affect tooth growth.
+
+# Load Data
+
+First, we'll load the data, require some libraries, and take a quick look at the structure of our data.
+
+```{r message=FALSE}
+data("ToothGrowth")
+library(ggplot2); library(broom); library(pander); library(pastecs); library(grid); library(lattice)
+panderOptions('table.alignment.default', 'left'); panderOptions('table.alignment.rownames', 'left')
+panderOptions('table.style', 'grid'); panderOptions('table.split.cells', 50); panderOptions('table.continues','')
+panderOptions('table.split.table', 100)
+dat <- ToothGrowth
+str(dat)
+```
+
+````{r}
+dat$dose <- as.factor(dat$dose) # convert dose levels to factor
+```
+
+
+## Exploratory Data Analysis
+
+````{r echo=FALSE, fig.height=3}
+g1 <- ggplot(data=dat, aes(x=supp, y=len)) + geom_boxplot(aes(fill=supp)) + 
+    xlab("Delivery Method") + ylab("Tooth Length")
+g2 <- ggplot(data=dat, aes(x=dose, y=len)) + geom_boxplot(aes(fill=dose)) + 
+    xlab("Dose") + ylab("Tooth Length")
+# Define grid layout to locate plots and print each graph
+pushViewport(viewport(layout = grid.layout(1, 2)))
+print(g1, vp = viewport(layout.pos.row = 1, layout.pos.col = 1))
+print(g2, vp = viewport(layout.pos.row = 1, layout.pos.col = 2))
+```
+
+````{r echo=FALSE, fig.height=3}
+histogram(~len|interaction(supp,dose),data=dat, xlab="Tooth Length",
+       type="density", main="Tooth Growth by Delivery & Dose", breaks=seq(from=4,to=34,by=2) )
+```
+
+From our preliminary exploration, the boxplots seem to indicate that tooth length increases with dosage, while the effect of delivery method is not so clear. The boxplots also show that most of the data is roughly symmetrical with even distribution around the mean (exept the OJ plot), suggesting normality. The shape of the density curves for each combination of delivery method and dosage tell us that our data is roughly Gaussian. The histograms also support the hypothesis that tooth length increases with dosage level. (See Appendix 1 for code to produce above plots.)
+
+## Basic Summary of Data
+
+````{r echo=FALSE, fig.align="left", fig.height=1}
+vcLength <- dat[dat$supp=="VC",]$len
+ojLength <- dat[dat$supp=="OJ",]$len
+df1 <- data.frame("VC"= vcLength, "OJ"= ojLength)
+pandoc.title(title="Data Summary by Delivery Method Across All Dosages")
+pander(stat.desc(df1, basic=FALSE))
+
+```
+
+````{r echo=FALSE, fig.align="left", fig.height=1}
+vc05 <- dat[dat$supp=="VC" & dat$dose=="0.5", ]$len
+vc1 <- dat[dat$supp=="VC" & dat$dose=="1", ]$len
+vc2 <- dat[dat$supp=="VC" & dat$dose=="2", ]$len
+oj05 <- dat[dat$supp=="OJ" & dat$dose=="0.5", ]$len
+oj1 <- dat[dat$supp=="OJ" & dat$dose=="1", ]$len
+oj2 <- dat[dat$supp=="OJ" & dat$dose=="2", ]$len
+
+df2 <- data.frame(vc05, vc1, vc2, oj05, oj1, oj2)
+pandoc.title(title="Data Summary For Each Pair of Delivery Method and Dosage")
+pander(stat.desc(df2, basic=FALSE))
+```
+
+From our basic data summary, we're further assured of the normal distribution of our data by the close approximation of medians and means. (See Appendix 2 for code to produce basic data summary tables.)
+
+## Comparison of Tooth Growth by Delivery Method and Dosage
+
+The following tables show the results of two-sample t-tests performed on the data for each combination of delivery method and dosage. Column names indicate the data pairs. For example, vc05_1 indicates that delivery method was held constant to campare dosages of .05 and 1 (See Appendix 3 for a complete key to column names). In each case, the null hypothesis is that there is no difference in the means of tooth length while the alternative hypothesis is that the true difference in means is not zero. (See Appendix 4 for code to produce tables.) 
+
+````{r echo=FALSE, fig.height=1}
+vc05 <- dat[dat$supp=="VC" & dat$dose=="0.5", ]$len
+vc1 <- dat[dat$supp=="VC" & dat$dose=="1", ]$len
+vc2 <- dat[dat$supp=="VC" & dat$dose=="2", ]$len
+oj05 <- dat[dat$supp=="OJ" & dat$dose=="0.5", ]$len
+oj1 <- dat[dat$supp=="OJ" & dat$dose=="1", ]$len
+oj2 <- dat[dat$supp=="OJ" & dat$dose=="2", ]$len
+
+combos <- data.frame("vc05_1" = t( tidy(t.test(vc05, vc1))))
+combos <- cbind(combos, "vc05_2" = t( tidy(t.test(vc05, vc2))))
+combos <- cbind(combos, "vc1_2" = t( tidy(t.test(vc1, vc2))))
+combos <- cbind(combos, "oj05_1" = t( tidy(t.test(oj05, oj1))))
+combos <- cbind(combos, "oj05_2" = t( tidy(t.test(oj05, oj2))))
+combos <- cbind(combos, "oj1_2" = t( tidy(t.test(oj1, oj2))))
+pandoc.title(title="T-tests of All Dosage Pairs with Delivery Method Held Constant")
+pander(combos, digits=3)
+```
+
+````{r echo=FALSE, fig.height=1}
+combos2 <- data.frame("vc05_oj05" = t( tidy(t.test(vc05, oj05))))
+combos2 <- cbind(combos2, "vc1_oj1" = t( tidy(t.test(vc1, oj1))))
+combos2 <- cbind(combos2, "vc2_oj2" = t( tidy(t.test(vc2, oj2))))
+pandoc.title(title="T-tests of Delivery Method Pairs with Dosage Held Constant")
+pander(combos2)
+```
+
+## Conclusions
+
+For the t-tests of dosage pairs with delivery method held constant, in each case the 95% confidence intervals indicate a difference in the negative range when testing smaller dosage minus larger dosage, which tells us that there is a statistically significant increase in tooth growth with an increase in Vitamin C dosage. Also, the p-values are all below 0.05, well below that in almost all cases, which tells us that the probability of getting the results we did **and** the null hypothesis being true (no difference in tooth growth with increased dosage) is less than 5%.
+
+The t-tests of delivery methods with dosages held constant provided mixed results. At dosages of 0.5 mg and 1.0 mg, the results were statistically significant with ascorbic acid (VC) resulting in greater tooth growth based, as with the above tests, on the confidence intervals and p-values. At dosages of 2.0 mg, the p-value was 0.96 and the confidence interval contained zero, which indicates a very high likelihood that the null hypothesis is correct -- there is no real difference in tooth growth between delivery methods at the highest dosage level.
+
+It is important to note that our analysis assumes that the 60 guinea pigs were chosen randomly in such a way that they represent the actual population of guinea pigs, and that the choice of dosage and delivery method for each guinea pig was done randomly so as not to introduce any unknown confounders. Also, our t-tests assume unequal variance between each pair of samples that we tested.
+
+
+
+
+\pagebreak
+
+## Appendices 
+
+### Appendix 1: Code to produce exploratory data analysis plots:
+
+````{r eval=FALSE, fig.height=3}
+g1 <- ggplot(data=dat, aes(x=supp, y=len)) + geom_boxplot(aes(fill=supp)) + 
+    xlab("Delivery Method") + ylab("Tooth Length")
+g2 <- ggplot(data=dat, aes(x=dose, y=len)) + geom_boxplot(aes(fill=dose)) + 
+    xlab("Dose") + ylab("Tooth Length")
+# Define grid layout to locate plots and print each graph
+pushViewport(viewport(layout = grid.layout(1, 2)))
+print(g1, vp = viewport(layout.pos.row = 1, layout.pos.col = 1))
+print(g2, vp = viewport(layout.pos.row = 1, layout.pos.col = 2))
+```
+
+````{r eval=FALSE, fig.height=3}
+histogram(~len|interaction(supp,dose),data=dat, xlab="Tooth Length",
+       type="density", main="Tooth Growth by Delivery & Dose", breaks=seq(from=4,to=34,by=2) )
+```
+
+
+### Appendix 2: Code to produce tables for Basic Data Summary
+
+````{r eval=FALSE, fig.align="left", fig.height=1}
+vcLength <- dat[dat$supp=="VC",]$len
+ojLength <- dat[dat$supp=="OJ",]$len
+df1 <- data.frame("VC"= vcLength, "OJ"= ojLength)
+pander(stat.desc(df1, basic=FALSE))
+
+```
+
+````{r eval=FALSE, fig.align="left", fig.height=1}
+vc05 <- dat[dat$supp=="VC" & dat$dose=="0.5", ]$len
+vc1 <- dat[dat$supp=="VC" & dat$dose=="1", ]$len
+vc2 <- dat[dat$supp=="VC" & dat$dose=="2", ]$len
+oj05 <- dat[dat$supp=="OJ" & dat$dose=="0.5", ]$len
+oj1 <- dat[dat$supp=="OJ" & dat$dose=="1", ]$len
+oj2 <- dat[dat$supp=="OJ" & dat$dose=="2", ]$len
+
+df2 <- data.frame(vc05, vc1, vc2, oj05, oj1, oj2)
+pander(stat.desc(df2, basic=FALSE))
+
+```
+
+### Appendix 3: Key to column names in t-test tables:
+
+````{r echo=FALSE}
+r1 <- c("vc05_1", "Delivery method VC held constant, comparing dosages of 0.5 vs. 1 mg")
+r2 <- c("vc05_2", "Delivery method VC held constant, comparing dosages of 0.5 vs. 2 mg")
+r3 <- c("vc1_2", "Delivery method VC held constant, comparing dosages of 1 vs. 2 mg")
+r4 <- c("oj05_1", "Delivery method OJ held constant, comparing dosages of 0.5 vs. 1 mg")
+r5 <- c("oj1_2", "Delivery method OJ held constant, comparing dosages of 1 vs. 2 mg")
+r6 <- c("oj05_2", "Delivery method OJ held constant, comparing dosages of 0.5 vs. 2 mg")
+r7 <- c("vc05_oj05", "Dosage of 0.5 mg held constant, comparing delivery methods VC vs. OJ")
+r8 <- c("vc1_oj1" , "Dosage of 1 mg held constant, comparing delivery methods VC vs. OJ")
+r9 <- c("vc2_oj2", "Dosage of 2 mg held constant, comparing delivery methods VC vs. OJ")
+x <- rbind(r1, r2, r3, r4, r5, r6, r7, r8, r9)
+rownames(x) <- NULL
+pander(x)
+```
+
+
+### Appendix 4: Code to produce t-test tables:
+````{r eval=FALSE}
+vc05 <- dat[dat$supp=="VC" & dat$dose=="0.5", ]$len
+vc1 <- dat[dat$supp=="VC" & dat$dose=="1", ]$len
+vc2 <- dat[dat$supp=="VC" & dat$dose=="2", ]$len
+oj05 <- dat[dat$supp=="OJ" & dat$dose=="0.5", ]$len
+oj1 <- dat[dat$supp=="OJ" & dat$dose=="1", ]$len
+oj2 <- dat[dat$supp=="OJ" & dat$dose=="2", ]$len
+
+combos <- data.frame("vc05_1" = t( tidy(t.test(vc05, vc1))))
+combos <- cbind(combos, "vc05_2" = t( tidy(t.test(vc05, vc2))))
+combos <- cbind(combos, "vc1_2" = t( tidy(t.test(vc1, vc2))))
+combos <- cbind(combos, "oj05_1" = t( tidy(t.test(oj05, oj1))))
+combos <- cbind(combos, "oj05_2" = t( tidy(t.test(oj05, oj2))))
+combos <- cbind(combos, "oj1_2" = t( tidy(t.test(oj1, oj2))))
+pander(combos)
+```
+
+````{r eval=FALSE}
+combos2 <- data.frame("vc05_oj05" = t( tidy(t.test(vc05, oj05))))
+combos2 <- cbind(combos2, "vc1_oj1" = t( tidy(t.test(vc1, oj1))))
+combos2 <- cbind(combos2, "vc2_oj2" = t( tidy(t.test(vc2, oj2))))
+pander(combos2)
+```
+
+### Appendix 4: Complete RMD file
+
+The complete R Markdown file used to compile this pdf report can be found here...
+
+https://github.com/tchopoorian/Statistical-Inference
